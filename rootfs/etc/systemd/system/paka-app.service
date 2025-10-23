@@ -1,12 +1,14 @@
 [Unit]
-Description=Paka First-Boot Setup
-After=network-online.target
-Wants=network-online.target
+Description=Paka Python Application
+After=network.target paka-first-boot.service
 
 [Service]
-Type=oneshot
-ExecStart=/usr/local/bin/paka-first-boot.sh
-RemainAfterExit=true
+ExecStart=/usr/bin/python3 /opt/paka-project/main.py
+WorkingDirectory=/opt/paka-project/
+Restart=always  # <--- It's in this file
+User=ubuntu
+Group=ubuntu
+EnvironmentFile=/opt/paka-project/.env
 
 [Install]
 WantedBy=multi-user.target

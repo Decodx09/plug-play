@@ -44,8 +44,9 @@ sudo rsync -a ./rootfs/ "${WORKDIR}/mnt/"
 echo "Setting up chroot environment..."
 sudo cp /usr/bin/qemu-aarch64-static "${WORKDIR}/mnt/usr/bin/"
 
-# --- FIX: Copy host DNS settings and follow symlinks with -L ---
-sudo cp -L /etc/resolv.conf "${WORKDIR}/mnt/etc/"
+# --- FIX: Delete the dangling symlink first, then copy the file ---
+sudo rm "${WORKDIR}/mnt/etc/resolv.conf"
+sudo cp /etc/resolv.conf "${WORKDIR}/mnt/etc/"
 
 # --- Chroot Operations ---
 echo "Running commands inside the chroot..."
@@ -78,8 +79,6 @@ rm -rf /var/lib/apt/lists/*
 umount /proc /sys /dev/pts
 EOF
 # --- End of Chroot ---
-
-# NOTE: No need to remove resolv.conf, as we copied a real file, not a symlink.
 
 echo "Chroot setup complete."
 

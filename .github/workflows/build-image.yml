@@ -66,6 +66,10 @@ jobs:
           NEEDRESTART_MODE: a
           DEBIAN_FRONTEND: noninteractive
         run: |
+          # Make the build script executable
+          chmod +x scripts/build-image.sh
+          
+          # Run the build script
           mkdir -p build
           scripts/build-image.sh \
             --base-url "$SELECTED_BASE_URL" \

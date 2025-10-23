@@ -1,0 +1,89 @@
+name: Build Raspberry Pi Image
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'rootfs/**'
+      - 'scripts/**'
+      - '.github/workflows/build-image.yml'
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Override Ubuntu preinstalled image URL"
+        required: false
+        default: ""
+      image_name:
+        description: "Override output image filename"
+        required: false
+        default: ""
+      apt_extra_packages:
+        description: "Space-separated list of extra APT packages to install inside the image"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+    env:
+      DEFAULT_BASE_URL: https://cdimage.ubuntu.com/releases/22.04/release/ubuntu-22.04.5-preinstalled-server-arm64+raspi.img.xz
+      DEFAULT_IMAGE_NAME: paka-ubuntu-22.04.5-raspi.img
+      DEFAULT_APT_EXTRA_PACKAGES: ${{ vars.APT_EXTRA_PACKAGES }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static binfmt-support xz-utils parted curl rsync git
+
+      - name: Render /etc/paka/env from secrets
+        run: |
+          set -eo pipefail
+          install -d rootfs/etc/paka
+          cat <<EOF > rootfs/etc/paka/env
+          PAKA_SUPABASE_URL=${{ secrets.PAKA_SUPABASE_URL }}
+          PAKA_SUPABASE_ANON_KEY=${{ secrets.PAKA_SUPABASE_ANON_KEY }}
+          PAKA_AUTHORIZATION_BEARER=${{ secrets.PAKA_AUTHORIZATION_BEARER }}
+          PAKA_DEVICE_NAME=${{ vars.PAKA_DEVICE_NAME || '' }}
+          GITHUB_REPO_URL=${{ vars.GITHUB_REPO_URL || '' }}
+          GITHUB_CLONE_PATH=${{ vars.GITHUB_CLONE_PATH || '' }}
+          PAKA_X_API_KEY=${{ secrets.PAKA_X_API_KEY }}
+          PAKA_X_NAME=${{ secrets.PAKA_X_NAME }}
+          PAKA_HMAC_VALUE=${{ vars.PAKA_HMAC_VALUE || '' }}
+          EOF
+          chmod 600 rootfs/etc/paka/env
+
+      - name: Build Raspberry Pi image
+        env:
+          SELECTED_BASE_URL: ${{ inputs.base_url != '' && inputs.base_url || env.DEFAULT_BASE_URL }}
+          SELECTED_IMAGE_NAME: ${{ inputs.image_name != '' && inputs.image_name || env.DEFAULT_IMAGE_NAME }}
+          APT_EXTRA_PACKAGES: ${{ inputs.apt_extra_packages != '' && inputs.apt_extra_packages || env.DEFAULT_APT_EXTRA_PACKAGES }}
+          NEEDRESTART_MODE: a
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          mkdir -p build
+          scripts/build-image.sh \
+            --base-url "$SELECTED_BASE_URL" \
+            --output "build/$SELECTED_IMAGE_NAME"
+
+      - name: Compress artifacts
+        env:
+          SELECTED_IMAGE_NAME: ${{ inputs.image_name != '' && inputs.image_name || env.DEFAULT_IMAGE_NAME }}
+        run: |
+          xz -T0 "build/$SELECTED_IMAGE_NAME"
+          rm -f "build/$SELECTED_IMAGE_NAME.sha256"
+          sha256sum "build/$SELECTED_IMAGE_NAME.xz" > "build/$SELECTED_IMAGE_NAME.xz.sha256"
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paka-ubuntu-image
+          path: |
+            build/${{ inputs.image_name != '' && inputs.image_name || env.DEFAULT_IMAGE_NAME }}.xz
+            build/${{ inputs.image_name != '' && inputs.image_name || env.DEFAULT_IMAGE_NAME }}.xz.sha256
+          if-no-files-found: error

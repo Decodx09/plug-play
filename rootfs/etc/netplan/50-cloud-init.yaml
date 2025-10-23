@@ -3,9 +3,20 @@
 # network configuration capabilities, write a file
 # /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg with the following:
 # network: {config: disabled}
+
+# network:
+#     version: 2
+#     ethernets:
+#         eth0:
+#             dhcp4: true
+#             optional: true
+
 network:
     version: 2
-    ethernets:
-        eth0:
+    wifis:
+        wlan0:
             dhcp4: true
             optional: true
+            access-points:
+                "iBall-Baton":
+                    password: "shivanshsukhija"
